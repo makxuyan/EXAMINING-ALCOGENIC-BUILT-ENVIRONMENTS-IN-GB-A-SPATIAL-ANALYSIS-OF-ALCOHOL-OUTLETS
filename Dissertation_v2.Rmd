@@ -1,0 +1,695 @@
+---
+title: "Dissertation Version2"
+author: "Shuying Mai"
+date: "6/25/2023"
+output: html_document
+---
+
+```{r}
+library(osmdata)
+library(curl)
+library(tidyverse)
+library(sf)
+library(ragg)
+library(extrafont)
+library(rnaturalearth)
+library(paletteer)
+library(forcats)
+library(lwgeom)
+library(terra)
+library(sp)# classes and functions for raster data
+library(spData)        # load geographic data
+#library(spDataLarge)   # load larger geographic data
+library(tmap)    # for static and interactive maps
+library(leaflet) # for interactive maps
+library(ggplot2) # tidyverse data visualization package
+library(grid)
+```
+
+## Data Loading
+pub
+```{r}
+pub<-st_read('amenity_EPSG4326.gpkg', layer="amenity_EPSG4326_point", query="SELECT * FROM \"amenity_EPSG4326_point\" WHERE amenity IN ('pub')")
+#pub
+```
+bar
+```{r}
+bar<-st_read('amenity_EPSG4326.gpkg', layer="amenity_EPSG4326_point", query="SELECT * FROM \"amenity_EPSG4326_point\" WHERE amenity IN ('bar')")
+#bar
+```
+biergarten
+```{r}
+bg<-st_read('amenity_EPSG4326.gpkg', layer="amenity_EPSG4326_point", query="SELECT * FROM \"amenity_EPSG4326_point\" WHERE amenity IN ('biergarten')")
+#bg
+```
+nightclub
+```{r}
+club<-st_read('amenity_EPSG4326.gpkg', layer="amenity_EPSG4326_point", query="SELECT * FROM \"amenity_EPSG4326_point\" WHERE amenity IN ('nightclub')")
+#club
+```
+
+alcohol
+```{r}
+ach<-st_read('shop_EPSG4326.gpkg', layer="shop_EPSG4326_point", query="SELECT * FROM \"shop_EPSG4326_point\" WHERE shop IN ('alcohol')")
+ach$amenity<-"off-premise"
+```
+beverages
+```{r}
+#bvr<-st_read('shop_EPSG4326.gpkg', layer="shop_EPSG4326_point", query="SELECT * FROM \"shop_EPSG4326_point\" WHERE shop IN ('beverages')")
+```
+LA boundaries
+```{r}
+la<-st_read('Local_Authority_Districts_December_2022_Boundaries_UK_BFC_-5979566790322312414.gpkg')
+#la
+```
+ward boundaries
+```{r}
+wards<-st_read('Wards_December_2022_Boundaries_UK_BGC_-8100696825722307821.gpkg')
+#wards
+```
+
+plot of LA and wards
+```{r}
+plot(st_geometry(la["LAD22NM"]),lwd=0.1)
+```
+
+```{r}
+plot(st_geometry(wards["WD22NM"]),lwd=0.1)
+```
+data in the UK
+```{r}
+uk = world[world$name_long == "United Kingdom", ]
+pubUK<-pub[st_within(pub["_ogr_geometry_"],uk["geom"],sparse = FALSE)[,1],]
+barUK<-bar[st_within(bar["_ogr_geometry_"],uk["geom"],sparse = FALSE)[,1],]
+bgUK<-bg[st_within(bg["_ogr_geometry_"],uk["geom"],sparse = FALSE)[,1],]
+clubUK<-club[st_within(club["_ogr_geometry_"],uk["geom"],sparse = FALSE)[,1],]
+achUK<-ach[st_within(ach["_ogr_geometry_"],uk["geom"],sparse = FALSE)[,1],]
+#bvrUK<-bvr[st_within(bvr["_ogr_geometry_"],uk["geom"],sparse = FALSE)[,1],]
+dataUK<-rbind(pubUK,barUK,bgUK,clubUK,achUK)#,bvrUK)
+```
+
+```{r}
+uk = world[world$name_long == "United Kingdom", ]
+world_europe = world[world$continent == "Europe", ]
+plot(st_geometry(uk), col = "gray", lwd = 1)
+plot(st_geometry(world_europe), add = TRUE)
+plot(st_geometry(wards["WD22NM"]),lwd=0.05, add=TRUE)
+plot(dataUK["amenity"],pch=1, add = TRUE)
+#plot(dataUK[dataUK$name=="Maguire's Pub",],pch=1, add = TRUE)
+```
+
+## counts of shops by LA
+```{r}
+crs_to_use<-st_crs(la)#(dataUK)
+crs_epsg<-crs_to_use$epsg
+
+dataUKcrs<-st_transform(dataUK,crs=crs_epsg)
+#lacrs<-st_transform(la,crs=crs_epsg)
+# 进行空间连接和计数
+joined <- st_join(dataUKcrs,la,join=st_within)
+```
+
+```{r}
+nul<-joined[is.na(joined$LAD22CD),]
+#nul
+```
+
+
+```{r}
+tmap_save(Null,"Null.html")
+```
+
+manually change
+```{r}
+#%joined[joined$osm_id==4929046352,]$LAD22NM<-"Fermanagh and Omagh"
+#%joined[joined$osm_id==4929046352,]$LAD22CD<-"N09000006"
+#%joined[joined$osm_id==3101640528,]$LAD22NM<-"Fermanagh and Omagh"
+#%joined[joined$osm_id==3101640528,]$LAD22CD<-"N09000006"
+#%joined[joined$osm_id==7460660384,]$LAD22NM<-"Causeway Coast and Glens"
+#%joined[joined$osm_id==7460660384,]$LAD22CD<-"N09000004"
+#%joined[joined$osm_id==794378101,]$LAD22NM<-"Newry, Mourne and Down"
+#%joined[joined$osm_id==794378101,]$LAD22CD<-"N09000010"
+#%joined[joined$osm_id==1682179186,]$LAD22NM<-"Newry, Mourne and Down"
+#%joined[joined$osm_id==1682179186,]$LAD22CD<-"N09000010"
+joined[joined$osm_id==5959999933,]$LAD22NM<-"Portsmouth"
+joined[joined$osm_id==5959999933,]$LAD22CD<-"E06000044"
+joined[joined$osm_id==1299977723,]$LAD22NM<-"Portsmouth"
+joined[joined$osm_id==1299977723,]$LAD22CD<-"E06000044"
+joined[joined$osm_id==617437775,]$LAD22NM<-"Ceredigion"
+joined[joined$osm_id==617437775,]$LAD22CD<-"E06000008"
+joined[joined$osm_id==1527601378,]$LAD22NM<-"Brighton and Hove"
+joined[joined$osm_id==1527601378,]$LAD22CD<-"E06000043"
+
+joined[joined$osm_id==9705021317,]$LAD22NM<-"Isle of Wight"
+joined[joined$osm_id==9705021317,]$LAD22CD<-"E06000046"
+joined[joined$osm_id==5420392183,]$LAD22NM<-"Arun"
+joined[joined$osm_id==5420392183,]$LAD22CD<-"E07000224"
+joined[joined$osm_id==6800626687,]$LAD22NM<-"Arun"
+joined[joined$osm_id==6800626687,]$LAD22CD<-"E07000224"
+joined[joined$osm_id==1527704723,]$LAD22NM<-"Brighton and Hove"
+joined[joined$osm_id==1527704723,]$LAD22CD<-"E06000043"
+joined[joined$osm_id==764901582,]$LAD22NM<-"Brighton and Hove"
+joined[joined$osm_id==764901582,]$LAD22CD<-"E06000043"
+joined[joined$osm_id==4975270288,]$LAD22NM<-"Wandsworth"
+joined[joined$osm_id==4975270288,]$LAD22CD<-"E09000032"
+joined[joined$osm_id==4559315025,]$LAD22NM<-"Southwark"
+joined[joined$osm_id==4559315025,]$LAD22CD<-"E09000028"
+joined[joined$osm_id==7525867150,]$LAD22NM<-"Gravesham"
+joined[joined$osm_id==7525867150,]$LAD22CD<-"E07000109"
+#%joined[joined$osm_id==1786762185,]$LAD22NM<-"North Norfolk"
+#%joined[joined$osm_id==1786762185,]$LAD22CD<-"E07000147"
+joined[joined$osm_id==10031479605,]$LAD22NM<-"Gwynedd"
+joined[joined$osm_id==10031479605,]$LAD22CD<-"W06000002"
+joined[joined$osm_id==1298783012,]$LAD22NM<-"Glasgow City"
+joined[joined$osm_id==1298783012,]$LAD22CD<-"S12000049"
+joined[joined$osm_id==8192076450,]$LAD22NM<-"Ceredigion"
+joined[joined$osm_id==8192076450,]$LAD22CD<-"W06000008"
+#Maguire’s Pub Fitzpatrick’s and Victoria's ->point empty ->delete
+```
+
+```{r}
+joined<-joined[!is.na(joined$LAD22CD),]
+```
+
+```{r}
+counts <- joined %>%
+  group_by(LAD22CD) %>%
+  summarise(point_count = n())  # 计算每个地理区域中的点的个数
+
+# 打印结果
+print(counts)
+```
+
+
+## population and density at LA level
+```{r}
+library(readxl)
+pop<-read_excel("population2021_LA.xls",
+                sheet="MYE2 - Persons",skip=7,col_names = TRUE)
+pop
+```
+
+```{r}
+counts_df<-data.frame(counts)
+pop_merged<-merge(counts_df,pop,by.x="LAD22CD",by.y="Code",all=TRUE) 
+#outer join, but a lot of NA
+```
+
+```{r}
+pop_merged$density<-pop_merged$point_count/pop_merged$`All ages`*10000
+```
+Global environment saved here. (mac.RData)
+
+```{r}
+pdf("CountsPerLA.pdf")
+hist(engpop$point_count,main="Histogram of Counts per LA in England", xlab="Count per LA")
+dev.off()
+```
+```{r}
+tmap_mode("plot")
+Countmap = tm_shape(merge(la,counts_df,by="LAD22CD",all=TRUE) ) +tm_polygons(col="point_count",title="Outlets Count per LA") #+ tm_symbols(col="red",size="clusters")
+Countmap
+```
+```{r}
+tmap_save(Countmap, "CountPerLA.pdf")
+```
+
+```{r}
+dendata<-merge(la,pop_merged,by="LAD22CD",all=TRUE)
+dendata1<-dendata
+dendata1[dendata1$LAD22CD=="E09000001",]$density<-NA
+```
+```{r}
+tmap_mode("plot")
+Denmap = tm_shape(dendata1) +tm_polygons(col="density",title="Density per LA") #+ tm_symbols(col="red",size="clusters")
+Denmap
+```
+
+```{r}
+tmap_save(Denmap, "DenPerLA.pdf")
+```
+
+```{r}
+engpop<-pop_merged[grepl("E", pop_merged$LAD22CD), ]
+engpop1<-pop_merged1[grepl("E", pop_merged1$LAD22CD), ]
+```
+
+```{r}
+pdf("DensityPerLA.pdf")
+plot(pop_merged$density,main="Scatter Plot of Density per LA",xlab="Local Authority Index", ylab="Density per LA")
+dev.off()
+```
+```{r}
+pdf("DensityPlot.pdf")
+den<-density(pop_merged$density,na.rm=TRUE)
+plot(den,frame=FALSE,main="Density Plot of Density per LA")
+dev.off()
+```
+
+## Cluster plot
+```{r}
+tmap_mode("view")
+mapCount = tm_layout(frame = FALSE) + tm_shape(dataUK) + 
+  tm_dots(legend.show = TRUE,col="amenity",clustering=T, id="name")
+mapCount
+```
+
+```{r}
+tmap_save(mapCount,"mapCount.html")
+```
+
+## dbscan
+```{r}
+library("dbscan")
+```
+
+```{r}
+tmap_mode("view")
+for (eps in c(50,100,150,200,250,300)) {
+  for (minPts in c(2,3,5)) {
+    coord<-st_coordinates(joined$`_ogr_geometry_`)
+    nn<-frNN(coord,eps) #eps
+    test<-dbscan(nn,minPts=minPts) #minPoint
+    labels<-test$cluster
+    cat(paste("When eps =",eps),"and",paste("minPts =",minPts),", the   number of labels is:")
+    print(max(labels))
+    testData<-joined
+    testData$label<-labels
+    testData$layer<-testData$label%%26 
+    #26 is the length of paletteer_d("ggsci::default_ucscgb")
+    testData$layer<-as.factor(testData$layer)
+  
+    core<-is.corepoint(coord,eps,minPts=minPts)
+    circle<-st_buffer(testData[core,],eps)
+    cl_boundary<-circle %>% group_by(label) %>% summarise(`_ogr_geometry_`=st_union(`_ogr_geometry_`),do_union=FALSE)
+  
+    filename<-paste0("eps_",eps,"_minPts_",minPts,".html")
+    labelmap = tm_shape(testData) + tm_dots(legend.show = FALSE, id="label",col="layer",palette=paletteer_d("ggsci::default_ucscgb")) + tm_shape(cl_boundary) +tm_borders() + tmap_options(check.and.fix = TRUE)
+    tmap_save(labelmap,filename)
+    
+    manData<-testData[testData$LAD22NM=="Manchester",]
+    # manCluNumIn<-st_within(cl_boundary,la[la$LAD22NM=="Manchester",])
+    # manClu<-which(as.vector(as.matrix(manCluNumIn))) 
+    Clu<-unique(manData$label)
+    Clu<-Clu[Clu!=0]
+    #find out the num of cluster contained in Manchester
+    filename2<-paste0("eps_",eps,"_minPts_",minPts,".txt")
+    con<-file(filename2,"w")
+    writeLines(paste("The number of clusters in Manchester with epsilon",eps,"and minimum points", minPts, ":", length(Clu)), con)
+    for (cluster in Clu){
+      data<-testData[testData$label==cluster,]
+      writeLines(paste("cluster number:",cluster),con)
+      writeLines(paste(names(table(data$amenity)), table(data$amenity)), con)
+    }
+    close(con)
+    
+     # Clean up unnecessary variables after each loop
+    rm(coord, nn, test, labels, testData, core, circle, cl_boundary, labelmap, manData, Clu, data, filename, filename2, con)
+    gc()  # manually call the garbage collector
+  }
+}
+```
+
+
+find core points and circle boundaries
+```{r}
+# core<-is.corepoint(coord,eps,minPts=minPts)
+# circle<-st_buffer(testData[core,],eps)
+# cl_boundary<-circle %>% group_by(label) %>% summarise(`_ogr_geometry_`=st_union(`_ogr_geometry_`),do_union=FALSE)
+```
+
+```{r}
+# tm_shape(testData) + tm_dots(legend.show = TRUE, col="label",id="label",palette=paletteer_d("ggsci::default_ucscgb")) + tm_shape(cl_boundary) +tm_borders()+tmap_options(check.and.fix = TRUE)
+```
+
+find clusters in manchester using eps=100, minPts=3
+```{r}
+eps<-100
+minPts<-5
+coord<-st_coordinates(joined$`_ogr_geometry_`)
+nn<-frNN(coord,eps) #eps
+test<-dbscan(nn,minPts=minPts) #minPoint
+labels<-test$cluster
+cat(paste("When eps =",eps),"and",paste("minPts =",minPts),", the   number of labels is:")
+print(max(labels))
+testData<-joined
+testData$label<-labels
+testData$layer<-testData$label%%26
+
+core<-is.corepoint(coord,eps,minPts=minPts)
+circle<-st_buffer(testData[core,],eps)
+cl_boundary<-circle %>% group_by(label) %>% summarise(`_ogr_geometry_`=st_union(`_ogr_geometry_`),do_union=FALSE)
+```
+```{r}
+manData<-testData[testData$LAD22NM=="Manchester",]
+manCluNum<-length(unique(manData$label))
+manCluNumIn<-st_within(cl_boundary,la[la$LAD22NM=="Manchester",])
+print(manCluNum)
+sum(unlist(manCluNumIn))
+#There will be some clusters in the boundary of the LA.
+```
+clusters within Manchester
+```{r}
+# #manData<-testData[testData$LAD22NM=="Manchester",]
+# #manCluNumIn<-st_within(cl_boundary,la[la$LAD22NM=="Manchester",])
+# manClu<-which(as.vector(as.matrix(manCluNumIn))) 
+# #find out the num of cluster contained in Manchester
+# con<-file("test.txt","w")
+# for (cluster in manClu){
+#   data<-manData[manData$label==cluster,]
+#   writeLines(paste("cluster number:",cluster),con)
+#   writeLines(paste(names(table(data$amenity)), table(data$amenity)), con)
+# }
+# close(con)
+
+```
+
+clusters intersect
+```{r}
+#manData<-testData[testData$LAD22NM=="Manchester",]
+#manCluNumIn<-st_within(cl_boundary,la[la$LAD22NM=="Manchester",])
+Clu<-unique(manData$label)
+Clu<-Clu[Clu!=0]
+#find out the num of cluster contained in Manchester
+con<-file("test.txt","w")
+for (cluster in Clu){
+  data<-testData[testData$label==cluster,]
+  writeLines(paste("cluster number:",cluster),con)
+  writeLines(paste(names(table(data$amenity)), table(data$amenity)), con)
+}
+close(con)
+```
+
+
+convex hull
+```{r}
+# tmap_mode("view")
+# for (eps in c(50,100,150,200,250,300)) {
+#   for (minPts in c(2,3,5)) {
+#     coord<-st_coordinates(dataUKcrs$`_ogr_geometry_`)
+#     nn<-frNN(coord,eps) #eps
+#     test<-dbscan(nn,minPts=minPts) #minPoint
+#     labels<-test$cluster
+#     cat(paste("When eps =",eps),"and",paste("minPts =",minPts),", the number of labels is:")
+#     print(max(labels))
+#     testData<-dataUK
+#     testData$label<-labels
+#     
+#     Poly<-testData[testData$label!=0,] %>% group_by(label) %>% summarise() %>% st_convex_hull()
+#     
+#     filename<-paste0("eps_",eps,"_minPts_",minPts,".html")
+#     labelmap = tm_shape(testData) + tm_dots(legend.show = TRUE,col="label",id="name") +
+#       tm_shape(Poly) + tm_borders() 
+#     tmap_save(labelmap,filename)
+#   }
+# }
+```
+
+```{r}
+Poly<-testData[testData$label!=0,] %>% group_by(label) %>% summarise() %>% st_convex_hull()
+plot(Poly)
+
+```
+
+
+
+```{r}
+#pdf("clusters.pdf",height=10, width=14)
+testData$layer<-as.factor(testData$layer)
+#library(RColorBrewer)
+
+#initial_palette <- brewer.pal(9, "Set3")
+
+# 根据你的label数量重复调色板以获得所需长度
+#n_labels <- length(unique(testData$label))
+#palette_colors <- rep(initial_palette, ceiling(n_labels/9))[1:n_labels]
+
+
+
+tmap_mode("view")
+labelmap = #tm_shape(st_geometry(uk), col = "gray", lwd = 1,name="UK") + tm_polygons() + 
+  #tm_layout(frame = FALSE) + tm_shape(wards["WD22NM"],id="WD22NM",name="Wards") + tm_polygons() +
+  #tm_shape(st_geometry(wards["WD22NM"]),lwd=0.05,name="Wards") + tm_polygons(id="WD22NM") + 
+  tm_shape(testData) + tm_dots(legend.show = FALSE,col="layer",palette=paletteer_d("ggsci::default_ucscgb"), id="label") + 
+#,palette=paletteer_d("ggsci::default_ucscgb")) #+ tm_polygons(poly) 
+  tm_shape(Poly) + tm_borders() 
+labelmap
+#dev.off()
+```
+
+```{r}
+tmap_mode("plot")
+clumap = tm_shape(deplaData1) +tm_polygons(col="clusters",title="Count of Clusters per LA") #+ tm_symbols(col="red",size="clusters")
+clumap
+```
+
+```{r}
+tmap_save(labelmap, "Polygon.html")
+```
+
+```{r}
+engdepladata<-deplaData[grepl("E", deplaData$LAD22CD), ]
+engdepladata1<-deplaData1[grepl("E", deplaData1$LAD22CD), ]
+```
+
+```{r}
+pdf("EnglandCluster.pdf")
+hist(engdepladata1$clusters,main="Histogram of Clusters Counts per LA in England",xlab="Clusters Count")
+dev.off
+```
+
+```{r}
+pdf("ClusterPerLA.pdf")
+hist(deplaData1$clusters,main="Histogram of Clusters Counts per LA",xlab="Clusters Count")
+dev.off()
+```
+
+## Deprivation index
+```{r}
+lsoa<-st_read('LSOA_Dec_2021_Boundaries_Full_Clipped_EW_BFC_2022_-6437031168783062454.gpkg')
+```
+
+```{r}
+plot(st_geometry(lsoa["LSOA21NM"]),lwd=0.1)
+```
+
+```{r}
+library(readxl)
+dep<-read_excel("File_1_-_IMD2019_Index_of_Multiple_Deprivation.xlsx",sheet="IMD2019",col_names = TRUE)
+depData<-merge(lsoa,dep,by.x="LSOA21CD",by.y="LSOA code (2011)",all.x=TRUE)
+```
+
+```{r}
+depla<-read_excel("File_10_-_IoD2019_Local_Authority_District_Summaries__lower-tier__.xlsx",sheet="IMD",col_names=TRUE)
+deplaData<-merge(la,depla,by.x="LAD22CD",by.y="Local Authority District code (2019)",all.x=TRUE)
+deplaData1<-merge(deplaData,data.frame(clustercount)[,1:2],by="LAD22NM")
+```
+
+```{r}
+mandep<-depData[grepl("Manchester", depData$LSOA21NM), ]
+bmhdep<-depData[grepl("Birmingham", depData$LSOA21NM), ]
+
+```
+
+```{r}
+eps<-100
+minPts<-3
+coord<-st_coordinates(joined$`_ogr_geometry_`)
+nn<-frNN(coord,eps) #eps
+test<-dbscan(nn,minPts=minPts) #minPoint
+labels<-test$cluster
+cat(paste("When eps =",eps),"and",paste("minPts =",minPts),", the   number of labels is:")
+print(max(labels))
+testData<-joined
+testData$label<-labels
+testData$layer<-testData$label%%26 
+testData$layer<-as.factor(testData$layer)
+
+core<-is.corepoint(coord,eps,minPts=minPts)
+circle<-st_buffer(testData[core,],eps)
+cl_boundary<-circle %>% group_by(label) %>% summarise(`_ogr_geometry_`=st_union(`_ogr_geometry_`),do_union=FALSE)
+```
+
+
+```{r}
+labelmap = tm_shape(bmhdep) +tm_polygons(col="Index of Multiple Deprivation (IMD) Decile",id="Index of Multiple Deprivation (IMD) Decile") + 
+  tm_shape(testData) + tm_dots(legend.show = FALSE, col="layer",id="label",palette=paletteer_d("ggsci::default_ucscgb")) + tm_shape(cl_boundary) +tm_borders() + tmap_options(check.and.fix = TRUE) 
+
+```
+
+```{r}
+lalabelmap = tm_shape(engdepladata) +tm_polygons(col="IMD - Rank of average rank") #+ tm_shape(engdepladata1) + tm_symbols(col="red",size="clusters") 
+laclumap = tm_shape(engdepladata1) + tm_polygons(col="clusters") 
+```
+
+```{r}
+tmap_mode("plot")
+lalabelmap
+laclumap
+```
+```{r}
+tmap_save(lalabelmap,"IMD.pdf")
+tmap_save(laclumap,"ClusterEng.pdf")
+```
+
+
+```{r}
+tmap_mode("view")
+labelmap
+```
+
+```{r}
+tmap_save(labelmap,"labelmap.html")
+```
+
+deprivation analysis at lsoa level
+```{r}
+newtest<-st_join(testData,depData,join=st_within)
+```
+
+```{r}
+noth<-newtest[is.na(newtest$LSOA21CD),]
+```
+
+
+```{r}
+testNull<-newtest[is.na(newtest$LSOA21CD),]
+#joinNull<-joined[is.na(joined$LAD22CD),]
+tmap_mode("view")
+Null = #tm_shape(st_geometry(uk), col = "gray", lwd = 1,name="UK") + tm_polygons() + 
+  #tm_layout(frame = FALSE) + tm_shape(la["LAD22NM"],id="LAD22NM",name="WLocal Authority") + tm_polygons() +
+  #tm_shape(st_geometry(wards["WD22NM"]),lwd=0.05,name="Wards") + tm_polygons(id="WD22NM") + 
+  #tm_shape(joinNull) + tm_dots(legend.show = TRUE,col="amenity", id="name")
+  tm_shape(testNull) + tm_dots(legend.show = TRUE,col="amenity", id="label")
+Null
+```
+
+```{r}
+engnewtest<-newtest[grepl("E", newtest$LAD22CD), ]
+resul <- newtest %>%
+  group_by(`Index of Multiple Deprivation (IMD) Decile`) %>%
+  summarise(clusters = n_distinct(label)-1)
+
+```
+
+for loops
+```{r}
+for (eps in c(50,100,150,200,250,300)) {
+  for (minPts in c(2,3,5)) {
+    coord<-st_coordinates(joined$`_ogr_geometry_`)
+    nn<-frNN(coord,eps) #eps
+    test<-dbscan(nn,minPts=minPts) #minPoint
+    labels<-test$cluster
+    cat(paste("When eps =",eps),"and",paste("minPts =",minPts),", the   number of labels is:")
+    print(max(labels))
+    testData<-joined
+    testData$label<-labels
+    testData$layer<-testData$label%%26 
+    testData$layer<-as.factor(testData$layer)
+    
+    newtest<-st_join(testData,depData,join=st_within)
+    result <- newtest %>%
+  group_by(`Index of Multiple Deprivation (IMD) Decile`) %>%
+  summarise(clusters = n_distinct(label)-1)
+    table<-as.data.frame(result)
+    filename3<-paste0("eps_",eps,"_minPts_",minPts,".csv")
+    write_csv(table[,1:2],filename3)
+  }
+}
+```
+
+## Parallel running
+```{r}
+library(parallel)
+```
+
+```{r}
+# 设定使用的核心数并创建一个cluster
+cores <- detectCores()
+cl <- makeCluster(4)
+
+
+clusterExport(cl, "joined")
+# 使用parLapply并行计算
+results <- parLapply(cl, unique(testData$LAD22NM), function(x) {
+  library(sf)
+  library(dbscan)
+  library(dplyr)
+  eps<-100
+  minPts<-3
+  coord<-st_coordinates(joined$`_ogr_geometry_`)
+  nn<-frNN(coord,eps) #eps
+  test<-dbscan(nn,minPts=minPts) #minPoint
+  labels<-test$cluster
+  cat(paste("When eps =",eps),"and",paste("minPts =",minPts),", the   number of labels is:")
+  print(max(labels))
+  testData<-joined
+  testData$label<-labels
+  
+  core<-is.corepoint(coord,eps,minPts=minPts)
+  circle<-st_buffer(testData[core,],eps)
+  cl_boundary<-circle %>% group_by(label) %>% summarise(`_ogr_geometry_`=st_union(`_ogr_geometry_`),do_union=FALSE)
+  
+  Data<-testData[testData$LAD22NM==x,]
+  # manCluNumIn<-st_within(cl_boundary,la[la$LAD22NM=="Manchester",])
+  # manClu<-which(as.vector(as.matrix(manCluNumIn))) 
+  Clu<-unique(Data$label)
+  Clu<-Clu[Clu!=0]
+  #find out the num of cluster contained in Manchester
+  filename2<-paste0(x,"_eps_",eps,"_minPts_",minPts,".txt")
+  con<-file(filename2,"w")
+  writeLines(paste("The number of clusters in", x,"with epsilon",eps,"and minimum points", minPts, ":", length(Clu)), con)
+  for (cluster in Clu){
+    data<-testData[testData$label==cluster,]
+    writeLines(paste("cluster number:",cluster),con)
+    writeLines(paste(names(table(data$amenity)), table(data$amenity)), con)
+  }
+  close(con)
+  
+   # Clean up unnecessary variables after each loop
+  rm(coord, nn, test, labels, testData, core, circle, cl_boundary, labelmap, manData, Clu, data, filename, filename2, con)
+  gc()  # manually call the garbage collector
+})
+
+# 停止cluster
+stopCluster(cl)
+
+```
+
+
+## AHAH
+```{r}
+ahah<-read.table("ahahv2domainsindex.csv",sep=",",header=TRUE)
+ahahData<-merge(lsoa,ahah,by.x="LSOA21CD",by.y="lsoa11",all.x=TRUE)
+```
+
+```{r}
+manahah<-ahahData[grepl("Manchester", ahahData$LSOA21NM), ]
+```
+
+```{r}
+ahahtest<-st_join(testData,ahahData,join=st_within)
+```
+
+```{r}
+ahahmap = tm_shape(manahah) +tm_polygons(col="d_ahah",id="d_ahah",title = "AHAH - Decile") + tm_shape(testData[grepl("Manchester", testData$LAD22NM), ]) + tm_dots(legend.show = FALSE, col="layer",id="label",palette=paletteer_d("ggsci::default_ucscgb")) + tm_shape(cl_boundary) +tm_borders() + tmap_options(check.and.fix = TRUE) 
+tmap_mode("plot")
+ahahmap
+```
+```{r}
+tmap_save(ahahmap,"ahahmap.pdf")
+```
+
+```{r}
+engahahtest<-ahahtest[grepl("E", ahahtest$LAD22CD), ]
+resultahah <- engahahtest %>%
+  group_by(d_ahah) %>%
+  summarise(clusters = n_distinct(label)-1)
+
+```
+
+```{r}
+resultahah <- ahahtest %>%
+  group_by(d_ahah) %>%
+  summarise(clusters = n_distinct(label)-1)
+```
